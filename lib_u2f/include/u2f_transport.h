@@ -92,4 +92,9 @@ bool u2f_is_channel_broadcast(uint8_t *channel);
  */
 bool u2f_is_channel_forbidden(uint8_t *channel);
 
+/**
+ * Send a "user presence required" message on the current channel without updating the channel state
+ */
+void u2f_transport_send_usb_user_presence_required(u2f_service_t *service);
+
 #endif

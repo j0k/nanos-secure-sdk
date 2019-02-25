@@ -919,6 +919,7 @@ unsigned int os_io_seproxyhal_get_app_name_and_version(void) {
 
 unsigned short io_exchange(unsigned char channel, unsigned short tx_len) {
   unsigned short rx_len;
+  
 
 #ifdef HAVE_BOLOS_APP_STACK_CANARY
   // behavior upon detected stack overflow is to reset the SE
@@ -1012,6 +1013,12 @@ reply_apdu:
           case APDU_U2F:
             // prepare reply, the remaining segments will be pumped during USB/BLE events handling while waiting for the next APDU
 
+            // if waiting for an asynchronous reply, mark the parameters and answer later
+            if (G_io_u2f.waitAsynchronousResponse && (G_io_u2f.responseLength == 0)) {
+              G_io_u2f.responseLength = tx_len;
+              return 0; // APDU state isn't modified, will be cleared when the next request arrives
+            }
+
             // user presence + counter + rapdu + sw must fit the apdu buffer
             if (1U+ 4U+ tx_len +2U > sizeof(G_io_apdu_buffer)) {
               THROW(INVALID_PARAMETER);
@@ -1064,6 +1071,42 @@ reply_apdu:
       if (channel & IO_RESET_AFTER_REPLIED) {
         os_sched_exit(1);
         //reset();
+      }
+    }
+    else { // tx_len && !IO_ASYNCH_REPLY      
+      if (!tx_len && ((channel&~(IO_FLAGS)) == CHANNEL_APDU) && (G_io_apdu_state == APDU_U2F)) {
+        // Render the UI if a call was pending
+        if (ux.elements_count != 0 && (ux.elements_current < ux.elements_count)) {
+          while (!UX_DISPLAYED()) {
+            // wait previous DISPLAY_PROCESSED event
+            io_seproxyhal_spi_recv(G_io_seproxyhal_spi_buffer, sizeof(G_io_seproxyhal_spi_buffer), 0);
+            UX_DISPLAY_NEXT_ELEMENT();
+          }
+
+          // wait previous DISPLAY_PROCESSED event
+          io_seproxyhal_spi_recv(G_io_seproxyhal_spi_buffer, sizeof(G_io_seproxyhal_spi_buffer), 0);
+
+          // display screen (MCU copies the double buffer to the screen)
+          io_seproxyhal_general_status();
+
+          // wait until ack from MCU
+          io_seproxyhal_spi_recv(G_io_seproxyhal_spi_buffer, sizeof(G_io_seproxyhal_spi_buffer), 0);
+        }
+        // Asynchronous U2F reply - save the parameters and answer immediately to keep the channel alive
+        G_io_u2f.waitAsynchronousResponse = true;
+        G_io_u2f.responseLength = 0;       
+        u2f_transport_send_usb_user_presence_required(&G_io_u2f);
+        while (G_io_u2f.sending) {
+#ifdef HAVE_TINY_COROUTINE
+          tcr_yield();
+#else // HAVE_TINY_COROUTINE
+          io_seproxyhal_general_status();
+          io_seproxyhal_spi_recv(G_io_seproxyhal_spi_buffer, sizeof(G_io_seproxyhal_spi_buffer), 0);
+          // if packet is not well formed, then too bad ...
+          io_seproxyhal_handle_event();
+#endif // HAVE_TINY_COROUTINE        
+        }
+        io_seproxyhal_general_status();
       }
     }
 

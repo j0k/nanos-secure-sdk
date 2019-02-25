@@ -826,7 +826,12 @@ uint8_t  USBD_U2F_DataIn_impl (USBD_HandleTypeDef *pdev,
   // FIDO endpoint
   case (U2F_EPIN_ADDR&0x7F):
     // advance the u2f sending machine state
-    u2f_transport_sent(&G_io_u2f, U2F_MEDIA_USB);
+    if (!G_io_u2f.sending) {
+      u2f_transport_sent(&G_io_u2f, U2F_MEDIA_USB);
+    }
+    else {
+      G_io_u2f.sending = false;
+    }
     break;
   } 
   return USBD_OK;
