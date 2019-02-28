@@ -1073,6 +1073,7 @@ reply_apdu:
         //reset();
       }
     }
+#ifdef HAVE_IO_U2F    
     else { // tx_len && !IO_ASYNCH_REPLY      
       if (!tx_len && ((channel&~(IO_FLAGS)) == CHANNEL_APDU) && (G_io_apdu_state == APDU_U2F)) {
         // Render the UI if a call was pending
@@ -1109,6 +1110,7 @@ reply_apdu:
         io_seproxyhal_general_status();
       }
     }
+#endif // HAVE_IO_U2F    
 
 #ifndef HAVE_TINY_COROUTINE
     if (!(channel&IO_ASYNCH_REPLY)) {
