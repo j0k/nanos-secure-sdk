@@ -106,19 +106,18 @@ void u2f_apdu_sign(u2f_service_t *service, uint8_t p1, uint8_t p2,
         return;
     }
     
-    // Confirm immediately if it's just a validation call
-    if (p1 == P1_SIGN_CHECK_ONLY) {
-        u2f_message_reply(service, U2F_CMD_MSG,
-                  (uint8_t *)SW_PROOF_OF_PRESENCE_REQUIRED,
-                  sizeof(SW_PROOF_OF_PRESENCE_REQUIRED));
-        return;
-    }
-
     // Unwrap magic
     keyHandleLength = buffer[U2F_HANDLE_SIGN_HEADER_SIZE-1];
     
     // reply to the "get magic" question of the host
     if (keyHandleLength == 5) {
+        // Confirm immediately if it's just a validation call
+        if (p1 == P1_SIGN_CHECK_ONLY) {
+            u2f_message_reply(service, U2F_CMD_MSG,
+                  (uint8_t *)SW_PROOF_OF_PRESENCE_REQUIRED,
+                  sizeof(SW_PROOF_OF_PRESENCE_REQUIRED));
+            return;
+        }
         // GET U2F PROXY PARAMETERS
         // this apdu is not subject to proxy magic masking
         // APDU is F1 D0 00 00 00 to get the magic proxy
@@ -148,6 +147,14 @@ void u2f_apdu_sign(u2f_service_t *service, uint8_t p1, uint8_t p2,
         return;
     }
 
+    // Confirm immediately if it's just a validation call
+    if (p1 == P1_SIGN_CHECK_ONLY) {
+        u2f_message_reply(service, U2F_CMD_MSG,
+                  (uint8_t *)SW_PROOF_OF_PRESENCE_REQUIRED,
+                  sizeof(SW_PROOF_OF_PRESENCE_REQUIRED));
+        return;
+    }
+    
     // make the apdu available to higher layers
     os_memmove(G_io_apdu_buffer, buffer + U2F_HANDLE_SIGN_HEADER_SIZE, keyHandleLength);
     G_io_apdu_length = keyHandleLength;
