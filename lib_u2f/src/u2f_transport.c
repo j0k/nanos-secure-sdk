@@ -143,6 +143,18 @@ void u2f_transport_send_usb_user_presence_required(u2f_service_t *service) {
     u2f_io_send(G_io_usb_ep_buffer, offset, U2F_MEDIA_USB);
 }
 
+void u2f_transport_send_wink(u2f_service_t *service) {
+    uint16_t offset = 0;
+    service->sending = true;
+    os_memmove(G_io_usb_ep_buffer, service->channel, 4);
+    offset += 4;
+    G_io_usb_ep_buffer[offset++] = U2F_CMD_WINK;
+    G_io_usb_ep_buffer[offset++] = 0;
+    G_io_usb_ep_buffer[offset++] = 0;
+    u2f_io_send(G_io_usb_ep_buffer, offset, U2F_MEDIA_USB);
+}
+
+
 bool u2f_transport_receive_fakeChannel(u2f_service_t *service, uint8_t *buffer, uint16_t size) {
     if (service->fakeChannelTransportState == U2F_INTERNAL_ERROR) {
         return false;
@@ -150,9 +162,15 @@ bool u2f_transport_receive_fakeChannel(u2f_service_t *service, uint8_t *buffer, 
     if (memcmp(service->channel, buffer, 4) != 0) {
         goto error;
     }
-    if (service->fakeChannelTransportOffset == 0) {
+    if (service->fakeChannelTransportOffset == 0) {        
         uint16_t commandLength =
             (buffer[4 + 1] << 8) | (buffer[4 + 2]) + U2F_COMMAND_HEADER_SIZE;
+        // Some buggy implementations can send a WINK here, ignore it
+        if (buffer[4] == U2F_CMD_WINK) {
+            u2f_transport_send_wink(service);
+            return true;
+        }
+
         if (commandLength != service->transportLength) {
             goto error;
         }
